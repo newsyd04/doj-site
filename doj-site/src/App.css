@@ -6,3 +6,14 @@
 .buttonpadding{
   margin: 2.5%;
 }
+
+.tile-container {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+}
+
+.tile-container .bx--tile {
+  flex: 1; /* Ensure tiles take equal width */
+  max-width: 300px; /* Optional: Set a max-width */
+}
