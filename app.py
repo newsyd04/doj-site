@@ -1,116 +1,166 @@
-# app.py
-
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from secrets import token_hex
-from Crypto.Cipher import AES
-import base64
+from flask_cors import CORS
+import sqlite3
 import os
+import base64
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS
 
-# Placeholder database
-users_db = {}
+app.config['UPLOAD_FOLDER'] = 'uploads'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Function to generate AES key
-def generate_aes_key():
-    return os.urandom(32)  # 256-bit key
+# Initialize SQLite database
+def init_db():
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                public_key TEXT NOT NULL,
+                salt TEXT NOT NULL
+            )
+        ''')
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS files (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT NOT NULL,
+                original_filename TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                uploader_id INTEGER NOT NULL,
+                recipient_id INTEGER NOT NULL,
+                FOREIGN KEY (uploader_id) REFERENCES users (id),
+                FOREIGN KEY (recipient_id) REFERENCES users (id)
+            )
+        ''')
+        conn.commit()
 
-# Function to encrypt data with AES-GCM
-def encrypt_data(data, key):
-    cipher = AES.new(key, AES.MODE_GCM)
-    ciphertext, tag = cipher.encrypt_and_digest(data)
-    return ciphertext, tag, cipher.nonce
 
-# Function to decrypt data with AES-GCM
-def decrypt_data(ciphertext, tag, nonce, key):
-    cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-    return cipher.decrypt_and_verify(ciphertext, tag)
+init_db()
 
+# Register a new user
 @app.route('/register', methods=['POST'])
 def register():
-    data = request.get_json()
+    data = request.json
     username = data['username']
     password = data['password']
+    public_key = data['public_key']
+    salt = base64.b64encode(os.urandom(16)).decode('utf-8')
+    hashed_password = generate_password_hash(password + salt, method='scrypt')
     
-    # Generate salt and hash password
-    salt = token_hex(16)
-    hashed_password = generate_password_hash(password + salt)
-    
-    # Store user in database
-    users_db[username] = {'hashed_password': hashed_password, 'salt': salt}
-    
-    return jsonify({'message': 'Registration successful'})
+    try:
+        with sqlite3.connect('database.db') as conn:
+            c = conn.cursor()
+            c.execute('INSERT INTO users (username, password, public_key, salt) VALUES (?, ?, ?, ?)', 
+                      (username, hashed_password, public_key, salt))
+            conn.commit()
+        return jsonify({"message": "User registered successfully"}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"message": "Username already exists"}), 400
 
+# Login user
 @app.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
+    data = request.json
     username = data['username']
     password = data['password']
     
-    # Check if user exists
-    if username not in users_db:
-        return jsonify({'message': 'User not found'}), 404
-    
-    # Verify password
-    stored_password = users_db[username]['hashed_password']
-    salt = users_db[username]['salt']
-    if not check_password_hash(stored_password, password + salt):
-        return jsonify({'message': 'Incorrect password'}), 401
-    
-    return jsonify({'message': 'Login successful'})
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
+        user = c.fetchone()
+        if user and check_password_hash(user[1], password + user[2]):
+            return jsonify({"message": "Login successful", "user_id": user[0]}), 200
+        else:
+            return jsonify({"message": "Invalid username or password"}), 401
 
-# Route for file upload
+# Fetch public key
+@app.route('/getPublicKey', methods=['GET'])
+def get_public_key():
+    username = request.args.get('username')
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute('SELECT public_key FROM users WHERE username = ?', (username,))
+        user = c.fetchone()
+        if user:
+            return jsonify({"public_key": user[0]}), 200
+        else:
+            return jsonify({"message": "User not found"}), 404
+
+# Upload file
 @app.route('/upload', methods=['POST'])
 def upload():
-    data = request.get_json()
-    username = data['username']
-    file_content = data['file_content']
-    recipient = data['recipient']
+    data = request.json
+    file_content = data['fileContent']
+    uploader_id = data['uploaderId']
+    recipient_username = data['recipient']
+    original_filename = data['filename']
+    file_type = data['fileType']
     
-    # Check if recipient exists
-    if recipient not in users_db:
-        return jsonify({'message': 'Recipient not found'}), 404
-    
-    # Generate AES key for encryption
-    aes_key = generate_aes_key()
-    
-    # Encrypt file content
-    ciphertext, tag, nonce = encrypt_data(file_content.encode(), aes_key)
-    
-    # Store encrypted file in database (for demonstration, you'd save this in a database or file system)
-    encrypted_file = {'ciphertext': base64.b64encode(ciphertext).decode(),
-                      'tag': base64.b64encode(tag).decode(),
-                      'nonce': base64.b64encode(nonce).decode(),
-                      'sender': username,
-                      'recipient': recipient}
-    
-    return jsonify({'message': 'File uploaded successfully', 'encrypted_file': encrypted_file})
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute('SELECT id FROM users WHERE username = ?', (recipient_username,))
+        recipient = c.fetchone()
+        if recipient:
+            recipient_id = recipient[0]
+            filename = base64.b64encode(os.urandom(16)).decode('utf-8')
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            with open(file_path, 'w') as f:
+                f.write(file_content)
+            
+            c.execute('INSERT INTO files (filename, original_filename, file_type, uploader_id, recipient_id) VALUES (?, ?, ?, ?, ?)', 
+                      (filename, original_filename, file_type, uploader_id, recipient_id))
+            conn.commit()
+            return jsonify({"message": "File uploaded successfully"}), 201
+        else:
+            return jsonify({"message": "Recipient not found"}), 404
 
-# Route for file download
+# Download file
 @app.route('/download', methods=['POST'])
 def download():
-    data = request.get_json()
-    username = data['username']
-    file_info = data['file_info']
+    data = request.json
+    user_id = data['userId']
     
-    # Decrypt file
-    ciphertext = base64.b64decode(file_info['ciphertext'])
-    tag = base64.b64decode(file_info['tag'])
-    nonce = base64.b64decode(file_info['nonce'])
-    sender = file_info['sender']
-    
-    # Check if user has access to the file
-    if username != sender:
-        return jsonify({'message': 'Unauthorized access'}), 403
-    
-    # Retrieve sender's AES key (for demonstration, you'd implement a secure key exchange)
-    aes_key = generate_aes_key()  # Placeholder, should retrieve from a secure storage
-    
-    # Decrypt file content
-    decrypted_file_content = decrypt_data(ciphertext, tag, nonce, aes_key)
-    
-    return jsonify({'message': 'File downloaded successfully', 'file_content': decrypted_file_content.decode()})
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute('SELECT filename, original_filename, file_type FROM files WHERE recipient_id = ?', (user_id,))
+        files = c.fetchall()
+        if files:
+            file_content = []
+            for file in files:
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], file[0])
+                with open(file_path, 'r') as f:
+                    file_content.append({
+                        "filename": file[1],
+                        "fileType": file[2],
+                        "content": f.read()
+                    })
+            return jsonify({"fileContent": file_content}), 200
+        else:
+            return jsonify({"message": "No files found"}), 404
 
-if __name__ == "__main__":
-    app.run(debug=True)
+# Fetch all users
+@app.route('/users', methods=['GET'])
+def get_users():
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute('SELECT username FROM users')
+        users = c.fetchall()
+        user_list = [user[0] for user in users]
+        return jsonify({"users": user_list}), 200
+
+# Reset the database
+@app.route('/reset', methods=['POST'])
+def reset_database():
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute('DROP TABLE IF EXISTS users')
+        c.execute('DROP TABLE IF EXISTS files')
+        init_db()
+        return jsonify({"message": "Database reset successfully"}), 200
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
