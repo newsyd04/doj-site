@@ -4,6 +4,7 @@ from flask_cors import CORS
 import sqlite3
 import os
 import base64
+import re
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS
@@ -41,6 +42,9 @@ def init_db():
 
 init_db()
 
+def is_valid_username(username):
+    return re.match("'^[a-zA-Z0-9_]+$", username)
+
 # Register a new user
 @app.route('/register', methods=['POST'])
 def register():
@@ -48,6 +52,10 @@ def register():
     username = data['username']
     password = data['password']
     public_key = data['public_key']
+
+    if not is_valid_username(username):
+        return jsonify({"message": "Invalid username"}), 400
+    
     salt = base64.b64encode(os.urandom(16)).decode('utf-8')
     hashed_password = generate_password_hash(password + salt, method='scrypt')
     
@@ -108,8 +116,8 @@ def upload():
             recipient_id = recipient[0]
             filename = base64.b64encode(os.urandom(16)).decode('utf-8')
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            with open(file_path, 'w') as f:
-                f.write(file_content)
+            with open(file_path, 'wb') as f:
+                f.write(base64.b64decode(file_content))
             
             c.execute('INSERT INTO files (filename, original_filename, file_type, uploader_id, recipient_id) VALUES (?, ?, ?, ?, ?)', 
                       (filename, original_filename, file_type, uploader_id, recipient_id))
@@ -132,11 +140,11 @@ def download():
             file_content = []
             for file in files:
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], file[0])
-                with open(file_path, 'r') as f:
+                with open(file_path, 'rb') as f:
                     file_content.append({
                         "filename": file[1],
                         "fileType": file[2],
-                        "content": f.read()
+                        "content": base64.b64encode(f.read()).decode('utf-8')
                     })
             return jsonify({"fileContent": file_content}), 200
         else:
