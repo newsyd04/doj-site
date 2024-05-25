@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 import sqlite3
 import os
 import base64
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS
+CORS(app)  # Enable CORS for all routes
 
 app.config['UPLOAD_FOLDER'] = 'uploads'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -15,7 +15,8 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 def init_db():
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
-        c.execute('''
+        # Create the users and files tables
+        c.execute(''' 
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
@@ -38,19 +39,22 @@ def init_db():
         ''')
         conn.commit()
 
-
 init_db()
 
 # Register a new user
 @app.route('/register', methods=['POST'])
+@cross_origin()
 def register():
+    # Get user data from request
     data = request.json
     username = data['username']
     password = data['password']
     public_key = data['public_key']
+    # Generate salt and hash the password
     salt = base64.b64encode(os.urandom(16)).decode('utf-8')
     hashed_password = generate_password_hash(password + salt, method='scrypt')
     
+    # Insert user data into the database
     try:
         with sqlite3.connect('database.db') as conn:
             c = conn.cursor()
@@ -63,11 +67,14 @@ def register():
 
 # Login user
 @app.route('/login', methods=['POST'])
+@cross_origin()
 def login():
+    # Get user data from request
     data = request.json
     username = data['username']
     password = data['password']
     
+    # Check if the user exists and the password is correct
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
         c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
@@ -79,86 +86,125 @@ def login():
 
 # Fetch public key
 @app.route('/getPublicKey', methods=['GET'])
+@cross_origin()
 def get_public_key():
+    # Get username from request
     username = request.args.get('username')
+    # Fetch public key from the database
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
         c.execute('SELECT public_key FROM users WHERE username = ?', (username,))
         user = c.fetchone()
+        # Return the public key if the user exists
         if user:
             return jsonify({"public_key": user[0]}), 200
         else:
             return jsonify({"message": "User not found"}), 404
 
 # Upload file
+# Upload file
 @app.route('/upload', methods=['POST'])
+@cross_origin()
 def upload():
-    data = request.json
-    file_content = data['fileContent']
-    uploader_id = data['uploaderId']
-    recipient_username = data['recipient']
-    original_filename = data['filename']
-    file_type = data['fileType']
-    
-    with sqlite3.connect('database.db') as conn:
-        c = conn.cursor()
-        c.execute('SELECT id FROM users WHERE username = ?', (recipient_username,))
-        recipient = c.fetchone()
-        if recipient:
-            recipient_id = recipient[0]
-            filename = base64.b64encode(os.urandom(16)).decode('utf-8')
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            with open(file_path, 'w') as f:
-                f.write(file_content)
-            
-            c.execute('INSERT INTO files (filename, original_filename, file_type, uploader_id, recipient_id) VALUES (?, ?, ?, ?, ?)', 
-                      (filename, original_filename, file_type, uploader_id, recipient_id))
-            conn.commit()
-            return jsonify({"message": "File uploaded successfully"}), 201
-        else:
-            return jsonify({"message": "Recipient not found"}), 404
+    try:
+        # Get file data from request
+        data = request.json
+        file_content = data['fileContent']
+        uploader_id = data['uploaderId']
+        recipient_username = data['recipient']
+        original_filename = data['filename']
+        file_type = data['fileType']
+        
+        with sqlite3.connect('database.db') as conn:
+            c = conn.cursor()
+            # Check if the recipient exists
+            c.execute('SELECT id FROM users WHERE username = ?', (recipient_username,))
+            recipient = c.fetchone()
+            if recipient:
+                recipient_id = recipient[0] # Get the recipient ID
+                filename = base64.b64encode(os.urandom(16)).decode('utf-8') # Generate a random filename
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename) # Store the file in the uploads folder
+                with open(file_path, 'wb') as f:
+                    f.write(file_content.encode())  # Store as text
+                # Insert file data into the database
+                c.execute('INSERT INTO files (filename, original_filename, file_type, uploader_id, recipient_id) VALUES (?, ?, ?, ?, ?)', 
+                          (filename, original_filename, file_type, uploader_id, recipient_id))
+                conn.commit()
+                return jsonify({"message": "File uploaded successfully"}), 201
+            else:
+                return jsonify({"message": "Recipient not found"}), 404
+    except Exception as e:
+        return jsonify({"message": "Internal Server Error", "error": str(e)}), 500
+
 
 # Download file
 @app.route('/download', methods=['POST'])
+@cross_origin()
 def download():
     data = request.json
-    user_id = data['userId']
+    user_id = data.get('userId')
+    
+    if not user_id:
+        return jsonify({"message": "User ID is required"}), 400
     
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
-        c.execute('SELECT filename, original_filename, file_type FROM files WHERE recipient_id = ?', (user_id,))
+        c.execute('SELECT filename, original_filename, file_type FROM files WHERE recipient_id = ?', (user_id,)) # Fetch files uploaded for the user
         files = c.fetchall()
-        if files:
-            file_content = []
-            for file in files:
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], file[0])
-                with open(file_path, 'r') as f:
-                    file_content.append({
+        
+        if not files:
+            return jsonify({"message": "No files found"}), 404 # Return 404 if no files are found
+        
+        file_content = []
+        for file in files:
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file[0]) # Get the file path
+            if os.path.exists(file_path): # Check if the file exists
+                with open(file_path, 'r') as f: # Open the file
+                    file_content.append({ # Append the file content to the list
                         "filename": file[1],
                         "fileType": file[2],
-                        "content": f.read()
+                        "content": f.read()  # Read as text
                     })
-            return jsonify({"fileContent": file_content}), 200
-        else:
-            return jsonify({"message": "No files found"}), 404
+            else:
+                file_content.append({ # Append an error message if the file is not found
+                    "filename": file[1],
+                    "fileType": file[2],
+                    "content": None,
+                    "error": "File not found"
+                })
+        
+        return jsonify({"fileContent": file_content}), 200
+
+
+
+
 
 # Fetch all users
 @app.route('/users', methods=['GET'])
+@cross_origin()
 def get_users():
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
+        # Fetch all users from the database
         c.execute('SELECT username FROM users')
+        # Convert the list of tuples to a list of strings
         users = c.fetchall()
+        # Extract the usernames from the list of tuples
         user_list = [user[0] for user in users]
+        # Return the list of usernames
         return jsonify({"users": user_list}), 200
 
 # Reset the database
 @app.route('/reset', methods=['POST'])
+@cross_origin()
 def reset_database():
+    # Drop the tables and reinitialize them
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
+        # Drop the tables
         c.execute('DROP TABLE IF EXISTS users')
         c.execute('DROP TABLE IF EXISTS files')
+        # Reinitialize the database
         init_db()
         return jsonify({"message": "Database reset successfully"}), 200
 
