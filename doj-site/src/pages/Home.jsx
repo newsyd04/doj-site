@@ -6,7 +6,7 @@ import '@carbon/react/scss/components/text-input/_index.scss';
 import '@carbon/react/scss/components/button/_index.scss';
 import '@carbon/react/scss/components/stack/_index.scss';
 
-export default function Home({ setUsername, setPassword}) {
+export default function Home({ setUsername, setPassword, setMessage, userId, setUserId}) {
 
     const [registerUsername, setRegisterUsername] = useState('');
     const [registerPassword, setRegisterPassword] = useState('');
@@ -16,25 +16,7 @@ export default function Home({ setUsername, setPassword}) {
     const [signInPassword, setSignInPassword] = useState('');
     const [confirmSignInPassword, setConfirmSignInPassword] = useState('');
 
-
-    const [message, setMessage] = useState('');
-
     const navigate = useNavigate();
-
-
-    const fetchUsers = async () => {
-    try {
-        const response = await fetch('http://127.0.0.1:5000/users');
-        if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setUsers(data.users);
-    } catch (error) {
-        console.error('Error:', error);
-        setMessage('Error fetching users.');
-    }
-    };
 
       // Generate an ECDH key pair with P-256 curve
     const generateKeyPair = async () => {
@@ -78,17 +60,24 @@ export default function Home({ setUsername, setPassword}) {
     const handleRegister = async () => {
         const keyPair = await generateKeyPair();
         const publicKey = await exportKey(keyPair.publicKey);
+
+        if (registerPassword !== confirmRegisterPassword) {
+          setMessage('Passwords do not match.');
+          return;
+        }
         try {
           const response = await fetch('http://127.0.0.1:5000/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password, public_key: publicKey })
+            body: JSON.stringify({ registerUsername, registerPassword, public_key: publicKey })
           });
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const data = await response.json();
           setMessage(data.message);
+          setUsername(registerUsername);
+          navigate('/fileUpload');
         } catch (error) {
           console.error('Error:', error);
           setMessage('Error registering user.');
@@ -96,11 +85,15 @@ export default function Home({ setUsername, setPassword}) {
       };
 
       const handleLogin = async () => {
+        if (signInPassword !== confirmSignInPassword) {
+          setMessage('Passwords do not match.');
+          return;
+        }
         try {
           const response = await fetch('http://127.0.0.1:5000/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ signInUsername, signInPassword })
           });
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -108,8 +101,9 @@ export default function Home({ setUsername, setPassword}) {
           const data = await response.json();
           if (data.user_id) {
             setUserId(data.user_id);
-            setLoggedInUser(username);
-            fetchFiles();  // Fetch files upon login
+            setUsername(signInUsername);
+            navigate('/fileUpload');
+            //fetchFiles();  // Fetch files upon login
           }
           setMessage(data.message);
         } catch (error) {
@@ -119,55 +113,55 @@ export default function Home({ setUsername, setPassword}) {
       };
 
 
-      const fetchFiles = async () => {
-        try {
-          const response = await fetch('http://127.0.0.1:5000/download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId })
-          });
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          if (data.fileContent) {
-            setFiles(data.fileContent);
-            setSelectedFile(data.fileContent[0] || null);
-          } else {
-            setMessage('No files found.');
-          }
-        } catch (error) {
-          console.error('Error:', error);
-          setMessage('Error fetching files.');
-        }
-      };
+    //   const fetchFiles = async () => {
+    //     try {
+    //       const response = await fetch('http://127.0.0.1:5000/download', {
+    //         method: 'POST',
+    //         headers: { 'Content-Type': 'application/json' },
+    //         body: JSON.stringify({ userId })
+    //       });
+    //       if (!response.ok) {
+    //         throw new Error(`HTTP error! status: ${response.status}`);
+    //       }
+    //       const data = await response.json();
+    //       if (data.fileContent) {
+    //         setFiles(data.fileContent);
+    //         setSelectedFile(data.fileContent[0] || null);
+    //       } else {
+    //         setMessage('No files found.');
+    //       }
+    //     } catch (error) {
+    //       console.error('Error:', error);
+    //       setMessage('Error fetching files.');
+    //     }
+    //   };
 
-      const resetDatabase = async () => {
-        try {
-          const response = await fetch('http://127.0.0.1:5000/reset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-          });
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          setMessage(data.message);
-          setUsers([]);
-          setFiles([]);
-        } catch (error) {
-          console.error('Error:', error);
-          setMessage('Error resetting database.');
-        }
-      };
+    //   const resetDatabase = async () => {
+    //     try {
+    //       const response = await fetch('http://127.0.0.1:5000/reset', {
+    //         method: 'POST',
+    //         headers: { 'Content-Type': 'application/json' }
+    //       });
+    //       if (!response.ok) {
+    //         throw new Error(`HTTP error! status: ${response.status}`);
+    //       }
+    //       const data = await response.json();
+    //       setMessage(data.message);
+    //       setUsers([]);
+    //       setFiles([]);
+    //     } catch (error) {
+    //       console.error('Error:', error);
+    //       setMessage('Error resetting database.');
+    //     }
+    //   };
 
 
-      const handleLogout = () => {
-        setUserId(null);
-        setLoggedInUser(null);
-        setFiles([]);
-        setMessage('');
-      };
+    //   const handleLogout = () => {
+    //     setUserId(null);
+    //     setLoggedInUser(null);
+    //     setFiles([]);
+    //     setMessage('');
+    //   };
 
 
     return (

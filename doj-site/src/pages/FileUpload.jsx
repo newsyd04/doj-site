@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function FileUpload() {
+export default function FileUpload({username, userId, recipient}) {
 
     
     const [file, setFile] = useState(null);
@@ -41,6 +41,18 @@ export default function FileUpload() {
         }
         return buffer.buffer;
     };
+
+        
+    // Helper functions to convert between buffers and base64 strings
+    const bufferToBase64 = (buffer) => {
+      let binary = ''; // Create a binary string from the buffer
+      const bytes = new Uint8Array(buffer); // Create a byte array from the buffer
+      const len = bytes.byteLength; // Get the byte length of the buffer
+      for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+      }
+      return window.btoa(binary); // Return the base64 string
+  };
 
     
   const encryptData = async (key, data) => {
@@ -211,5 +223,26 @@ export default function FileUpload() {
       throw error;
     }
   };
+
+    return (
+        <div className="container">
+          <h2>File Upload</h2>
+          <input type="file" onChange={(e) => setFile(e.target.files[0])} />
+          <button onClick={handleFileUpload}>Upload</button>
+          <p>{message}</p>
+          <h3>Files</h3>
+          <ul>
+            {files.map((file, index) => (
+              <li key={index}>
+                <input type="radio" name="file" id={file.filename} value={file.filename} 
+                  onChange={() => setSelectedFile(file)} />
+                <label htmlFor={file.filename}>{file.filename}</label>
+              </li>
+            ))}
+          </ul>
+          <button onClick={handleFileDownload}>Download</button>
+        </div>
+      );
+
 }
 

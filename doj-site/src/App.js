@@ -9,6 +9,7 @@ function App() {
   const [password, setPassword] = useState('');
   const [users, setUsers] = useState([]);
   const [message, setMessage] = useState('');
+  const [userId, setUserId] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -37,6 +38,8 @@ function App() {
           <Route index element={<HomePage 
           username={username} setUsername={setUsername}
           password={password} setPassword={setPassword}
+          message={message} setMessage={setMessage}
+          userId={userId} setUserId={setUserId}
           />} />
           <Route path="fileUpload" element={<FileUploadPage/>} />
         </Routes>
