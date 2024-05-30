@@ -91,16 +91,22 @@ def login():
             return jsonify({"message": "Login successful", "user_id": user[0], "token": token}), 200
         else:
             return jsonify({"message": "Invalid username or password"}), 401
-        
+     
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        token = request.args.get('token')
-        if not token:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
             return jsonify({'message': 'Token is missing!'}), 403
+
         try:
+            token = auth_header.split(" ")[1]  # Extract token after 'Bearer'
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-        except:
+        except IndexError:
+            return jsonify({'message': 'Token is missing!'}), 403
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'Token has expired!'}), 403
+        except jwt.InvalidTokenError:
             return jsonify({'message': 'Token is invalid!'}), 403
         return f(*args, **kwargs)
     return decorated
@@ -110,7 +116,7 @@ def token_required(f):
 @cross_origin()
 def get_public_key():
     # Get username from request
-    username = request.args.get('username')
+    username = request.args.get('userId')
     # Fetch public key from the database
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
@@ -122,7 +128,6 @@ def get_public_key():
         else:
             return jsonify({"message": "User not found"}), 404
 
-# Upload file
 # Upload file
 @app.route('/upload', methods=['POST'])
 @cross_origin()
@@ -197,9 +202,6 @@ def download():
                 })
         
         return jsonify({"fileContent": file_content}), 200
-
-
-
 
 
 # Fetch all users
