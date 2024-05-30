@@ -47,8 +47,8 @@ init_db()
 def register():
     # Get user data from request
     data = request.json
-    username = data['username']
-    password = data['password']
+    username = data['registerUsername']
+    password = data['registerPassword']
     public_key = data['public_key']
     # Generate salt and hash the password
     salt = base64.b64encode(os.urandom(16)).decode('utf-8')
@@ -60,8 +60,11 @@ def register():
             c = conn.cursor()
             c.execute('INSERT INTO users (username, password, public_key, salt) VALUES (?, ?, ?, ?)', 
                       (username, hashed_password, public_key, salt))
+            c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
+            user = c.fetchone()
+            print(user)
             conn.commit()
-        return jsonify({"message": "User registered successfully"}), 201
+        return jsonify({"message": "User registered successfully", "user_id": user[0]}), 201
     except sqlite3.IntegrityError:
         return jsonify({"message": "Username already exists"}), 400
 
@@ -71,8 +74,8 @@ def register():
 def login():
     # Get user data from request
     data = request.json
-    username = data['username']
-    password = data['password']
+    username = data['signInUsername']
+    password = data['signInPassword']
     
     # Check if the user exists and the password is correct
     with sqlite3.connect('database.db') as conn:

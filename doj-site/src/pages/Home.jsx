@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { React, useState } from 'react';
 import { Tile, TextInput, FormGroup, Button } from '@carbon/react';
 import { useNavigate } from 'react-router-dom';
 import '@carbon/react/scss/components/tile/_index.scss';
@@ -14,7 +14,6 @@ export default function Home({ setUsername, setPassword, setMessage, userId, set
 
     const [signInUsername, setSignInUsername] = useState('');
     const [signInPassword, setSignInPassword] = useState('');
-    const [confirmSignInPassword, setConfirmSignInPassword] = useState('');
 
     const navigate = useNavigate();
 
@@ -76,6 +75,7 @@ export default function Home({ setUsername, setPassword, setMessage, userId, set
           }
           const data = await response.json();
           setMessage(data.message);
+          setUserId(data.user_id);
           setUsername(registerUsername);
           navigate('/fileUpload');
         } catch (error) {
@@ -85,10 +85,6 @@ export default function Home({ setUsername, setPassword, setMessage, userId, set
       };
 
       const handleLogin = async () => {
-        if (signInPassword !== confirmSignInPassword) {
-          setMessage('Passwords do not match.');
-          return;
-        }
         try {
           const response = await fetch('http://127.0.0.1:5000/login', {
             method: 'POST',
@@ -216,13 +212,6 @@ export default function Home({ setUsername, setPassword, setMessage, userId, set
                                 autoComplete="true"
                                 value={signInPassword}
                                 onChange={(e) => setSignInPassword(e.target.value)}
-                            />
-                            <TextInput.PasswordInput
-                                id="sign-in-confirm-password"
-                                labelText="Confirm password"
-                                autoComplete="true"
-                                value={confirmSignInPassword}
-                                onChange={(e) => setConfirmSignInPassword(e.target.value)}
                             />
                         </FormGroup>
                         <br />
