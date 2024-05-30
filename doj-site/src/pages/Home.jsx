@@ -6,7 +6,7 @@ import '@carbon/react/scss/components/text-input/_index.scss';
 import '@carbon/react/scss/components/button/_index.scss';
 import '@carbon/react/scss/components/stack/_index.scss';
 
-export default function Home({ setUsername, setPassword, showToast, userId, setUserId, setJWT}) {
+export default function Home({ showToast, setUserId, setJWT}) {
 
     const [registerUsername, setRegisterUsername] = useState('');
     const [registerPassword, setRegisterPassword] = useState('');
@@ -19,17 +19,17 @@ export default function Home({ setUsername, setPassword, showToast, userId, setU
 
       // Generate an ECDH key pair with P-256 curve
     const generateKeyPair = async () => {
-        try {
-        // Generate an ECDH key pair with P-256 curve
-        return await crypto.subtle.generateKey({
-            // ECDH key generation options
-            name: "ECDH",
-            namedCurve: "P-256"
-        }, true, ["deriveKey"]);
-        } catch (error) {
-        console.error('Error generating key pair:', error);
-        throw error;
-        }
+      try {
+      // Generate an ECDH key pair with P-256 curve
+      return await crypto.subtle.generateKey({
+          // ECDH key generation options
+          name: "ECDH",
+          namedCurve: "P-256"
+      }, true, ["deriveKey"]);
+      } catch (error) {
+      console.error('Error generating key pair:', error);
+      throw error;
+      }
     };
 
       // Export the public key in SPKI format
@@ -57,33 +57,32 @@ export default function Home({ setUsername, setPassword, showToast, userId, setU
     
 
     const handleRegister = async () => {
-        const keyPair = await generateKeyPair();
-        const publicKey = await exportKey(keyPair.publicKey);
+      const keyPair = await generateKeyPair();
+      const publicKey = await exportKey(keyPair.publicKey);
 
-        if (registerPassword !== confirmRegisterPassword) {
-          showToast('Passwords do not match.', true);
-          return;
+      if (registerPassword !== confirmRegisterPassword) {
+        showToast('Passwords do not match.', true);
+        return;
+      }
+      try {
+        const response = await fetch('http://127.0.0.1:5000/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ registerUsername, registerPassword, public_key: publicKey })
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-        try {
-          const response = await fetch('http://127.0.0.1:5000/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ registerUsername, registerPassword, public_key: publicKey })
-          });
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          const data = await response.json();
-          showToast(data.message, false);
-          setUserId(data.user_id);
-          setJWT(data.token);
-          setUsername(registerUsername);
-          navigate('/fileUpload');
-        } catch (error) {
-          console.error('Error:', error);
-          showToast('Error registering user.', true);
-        }
-      };
+        const data = await response.json();
+        showToast(data.message, false);
+        setUserId(data.user_id);
+        setJWT(data.token);
+        navigate('/fileUpload');
+      } catch (error) {
+        console.error('Error:', error);
+        showToast('Error registering user.', true);
+      }
+    };
 
       const handleLogin = async () => {
         try {
@@ -98,7 +97,6 @@ export default function Home({ setUsername, setPassword, showToast, userId, setU
           const data = await response.json();
           if (data.user_id) {
             setUserId(data.user_id);
-            setUsername(signInUsername);
             setJWT(data.token);
             navigate('/fileUpload');
             //fetchFiles();  // Fetch files upon login
@@ -110,117 +108,61 @@ export default function Home({ setUsername, setPassword, showToast, userId, setU
         }
       };
 
-
-    //   const fetchFiles = async () => {
-    //     try {
-    //       const response = await fetch('http://127.0.0.1:5000/download', {
-    //         method: 'POST',
-    //         headers: { 'Content-Type': 'application/json' },
-    //         body: JSON.stringify({ userId })
-    //       });
-    //       if (!response.ok) {
-    //         throw new Error(`HTTP error! status: ${response.status}`);
-    //       }
-    //       const data = await response.json();
-    //       if (data.fileContent) {
-    //         setFiles(data.fileContent);
-    //         setSelectedFile(data.fileContent[0] || null);
-    //       } else {
-    //         setMessage('No files found.');
-    //       }
-    //     } catch (error) {
-    //       console.error('Error:', error);
-    //       setMessage('Error fetching files.');
-    //     }
-    //   };
-
-    //   const resetDatabase = async () => {
-    //     try {
-    //       const response = await fetch('http://127.0.0.1:5000/reset', {
-    //         method: 'POST',
-    //         headers: { 'Content-Type': 'application/json' }
-    //       });
-    //       if (!response.ok) {
-    //         throw new Error(`HTTP error! status: ${response.status}`);
-    //       }
-    //       const data = await response.json();
-    //       setMessage(data.message);
-    //       setUsers([]);
-    //       setFiles([]);
-    //     } catch (error) {
-    //       console.error('Error:', error);
-    //       setMessage('Error resetting database.');
-    //     }
-    //   };
-
-
-    //   const handleLogout = () => {
-    //     setUserId(null);
-    //     setLoggedInUser(null);
-    //     setFiles([]);
-    //     setMessage('');
-    //   };
-
-
     return (
-        <div className='tile-container'>
-            <div style={{border: '5px solid rgb(54, 198, 255)'}}>
-                <Tile>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <FormGroup legendText="">
-                            <h3>Register</h3>
-                            <TextInput
-                                id="register-username"
-                                labelText="Username"
-                                autoComplete="true"
-                                value={registerUsername}
-                                onChange={(e) => setRegisterUsername(e.target.value)}
-                            />
-                            <TextInput.PasswordInput
-                                id="register-password"
-                                labelText="Enter password"
-                                autoComplete="true"
-                                value={registerPassword}
-                                onChange={(e) => setRegisterPassword(e.target.value)}
-                            />
-                            <TextInput.PasswordInput
-                                id="register-confirm-password"
-                                labelText="Confirm password"
-                                autoComplete="true"
-                                value={confirmRegisterPassword}
-                                onChange={(e) => setConfirmRegisterPassword(e.target.value)}
-                            />
-                        </FormGroup>
-                        <br />
-                        <Button onClick={handleRegister}>Register</Button>
-                    </div>
-                </Tile>
-            </div>
-            <div style={{border: '5px solid rgb(54, 198, 255)'}}>
-                <Tile>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <FormGroup legendText="">
-                            <h3>Sign In</h3>
-                            <TextInput
-                                id="sign-in-username"
-                                labelText="Enter Username"
-                                autoComplete="true"
-                                value={signInUsername}
-                                onChange={(e) => setSignInUsername(e.target.value)}
-                            />
-                            <TextInput.PasswordInput
-                                id="sign-in-password"
-                                labelText="Enter password"
-                                autoComplete="true"
-                                value={signInPassword}
-                                onChange={(e) => setSignInPassword(e.target.value)}
-                            />
-                        </FormGroup>
-                        <br />
-                        <Button onClick={handleLogin}>Sign In</Button>
-                    </div>
-                </Tile>
-            </div>
-        </div>
+      <div className='tile-container' style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Tile style={{ border: '5px solid rgb(54, 198, 255)', width: '45%' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <FormGroup legendText="">
+                      <h3>Register</h3>
+                      <TextInput
+                          id="register-username"
+                          labelText="Username"
+                          autoComplete="true"
+                          value={registerUsername}
+                          onChange={(e) => setRegisterUsername(e.target.value)}
+                      />
+                      <TextInput.PasswordInput
+                          id="register-password"
+                          labelText="Enter password"
+                          autoComplete="true"
+                          value={registerPassword}
+                          onChange={(e) => setRegisterPassword(e.target.value)}
+                      />
+                      <TextInput.PasswordInput
+                          id="register-confirm-password"
+                          labelText="Confirm password"
+                          autoComplete="true"
+                          value={confirmRegisterPassword}
+                          onChange={(e) => setConfirmRegisterPassword(e.target.value)}
+                      />
+                  </FormGroup>
+                  <br />
+                  <Button onClick={handleRegister}>Register</Button>
+              </div>
+          </Tile>
+          <Tile style={{ border: '5px solid rgb(54, 198, 255)', width: '45%' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <FormGroup legendText="">
+                      <h3>Sign In</h3>
+                      <TextInput
+                          id="sign-in-username"
+                          labelText="Enter Username"
+                          autoComplete="true"
+                          value={signInUsername}
+                          onChange={(e) => setSignInUsername(e.target.value)}
+                      />
+                      <TextInput.PasswordInput
+                          id="sign-in-password"
+                          labelText="Enter password"
+                          autoComplete="true"
+                          value={signInPassword}
+                          onChange={(e) => setSignInPassword(e.target.value)}
+                      />
+                  </FormGroup>
+                  <br />
+                  <Button onClick={handleLogin}>Sign In</Button>
+              </div>
+          </Tile>
+      </div>
     )
 }

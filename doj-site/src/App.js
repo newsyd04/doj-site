@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import HomePage from './pages/Home';
 import FileUploadPage from './pages/FileUpload';
@@ -8,34 +8,11 @@ import '../src/App.css';
 import './styling/notification.css';
 
 function App() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [users, setUsers] = useState([]);
   const [message, setMessage] = useState('');
   const [userId, setUserId] = useState('');
   const [successToastOpen, setSuccessToastOpen] = useState(false);
   const [isErrorMessage, setIsErrorMessage] = useState(true);
   const [JWT, setJWT] = useState('');
-
-  
-
-  // useEffect(() => {
-  //   fetchUsers();
-  // }, []);
-
-  // const fetchUsers = async () => {
-  //   try {
-  //     const response = await fetch('http://127.0.0.1:5000/users');
-  //     if (!response.ok) {
-  //       throw new Error(`HTTP error! status: ${response.status}`);
-  //     }
-  //     const data = await response.json();
-  //     setUsers(data.users);
-  //   } catch (error) {
-  //     console.error('Error:', error);
-  //     setMessage('Error fetching users.');
-  //   }
-  // };
 
   const showToast = (message, isErrorMessage) => {
     setMessage(message);
@@ -62,13 +39,15 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route index element={<HomePage 
-          username={username} setUsername={setUsername}
-          password={password} setPassword={setPassword}
           showToast={showToast}
           userId={userId} setUserId={setUserId}
           JWT={JWT} setJWT={setJWT}
           />} />
-          <Route path="fileUpload" element={<FileUploadPage/>} />
+          <Route path="fileUpload" element={<FileUploadPage
+          showToast={showToast}
+          JWT={JWT}
+          userId={userId}
+          />} />
         </Routes>
     </BrowserRouter>
       </header>
