@@ -6,7 +6,7 @@ import '@carbon/react/scss/components/text-input/_index.scss';
 import '@carbon/react/scss/components/button/_index.scss';
 import '@carbon/react/scss/components/stack/_index.scss';
 
-export default function Home({ setUsername, setPassword, showToast, userId, setUserId, }) {
+export default function Home({ setUsername, setPassword, showToast, userId, setUserId, setJWT}) {
 
     const [registerUsername, setRegisterUsername] = useState('');
     const [registerPassword, setRegisterPassword] = useState('');
@@ -76,6 +76,7 @@ export default function Home({ setUsername, setPassword, showToast, userId, setU
           const data = await response.json();
           showToast(data.message, false);
           setUserId(data.user_id);
+          setJWT(data.token);
           setUsername(registerUsername);
           navigate('/fileUpload');
         } catch (error) {
@@ -98,6 +99,7 @@ export default function Home({ setUsername, setPassword, showToast, userId, setU
           if (data.user_id) {
             setUserId(data.user_id);
             setUsername(signInUsername);
+            setJWT(data.token);
             navigate('/fileUpload');
             //fetchFiles();  // Fetch files upon login
           }

@@ -15,26 +15,27 @@ function App() {
   const [userId, setUserId] = useState('');
   const [successToastOpen, setSuccessToastOpen] = useState(false);
   const [isErrorMessage, setIsErrorMessage] = useState(true);
+  const [JWT, setJWT] = useState('');
 
   
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  // useEffect(() => {
+  //   fetchUsers();
+  // }, []);
 
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch('http://127.0.0.1:5000/users');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      setUsers(data.users);
-    } catch (error) {
-      console.error('Error:', error);
-      setMessage('Error fetching users.');
-    }
-  };
+  // const fetchUsers = async () => {
+  //   try {
+  //     const response = await fetch('http://127.0.0.1:5000/users');
+  //     if (!response.ok) {
+  //       throw new Error(`HTTP error! status: ${response.status}`);
+  //     }
+  //     const data = await response.json();
+  //     setUsers(data.users);
+  //   } catch (error) {
+  //     console.error('Error:', error);
+  //     setMessage('Error fetching users.');
+  //   }
+  // };
 
   const showToast = (message, isErrorMessage) => {
     setMessage(message);
@@ -65,6 +66,7 @@ function App() {
           password={password} setPassword={setPassword}
           showToast={showToast}
           userId={userId} setUserId={setUserId}
+          JWT={JWT} setJWT={setJWT}
           />} />
           <Route path="fileUpload" element={<FileUploadPage/>} />
         </Routes>

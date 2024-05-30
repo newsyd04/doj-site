@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS, cross_origin
+from functools import wraps
+import datetime
+import jwt
 import sqlite3
 import os
 import base64
@@ -9,6 +12,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['SECRET_KEY'] = 'your_secret_key'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Initialize SQLite database
@@ -63,7 +67,8 @@ def register():
             c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
             user = c.fetchone()
             conn.commit()
-        return jsonify({"message": "User registered successfully", "user_id": user[0]}), 201
+        token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'], algorithm="HS256")
+        return jsonify({"message": "User registered successfully", "user_id": user[0], "token": token}), 201
     except sqlite3.IntegrityError:
         return jsonify({"message": "Username already exists"}), 400
 
@@ -82,9 +87,23 @@ def login():
         c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
         user = c.fetchone()
         if user and check_password_hash(user[1], password + user[2]):
-            return jsonify({"message": "Login successful", "user_id": user[0]}), 200
+            token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'], algorithm="HS256")
+            return jsonify({"message": "Login successful", "user_id": user[0], "token": token}), 200
         else:
             return jsonify({"message": "Invalid username or password"}), 401
+        
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.args.get('token')
+        if not token:
+            return jsonify({'message': 'Token is missing!'}), 403
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+        except:
+            return jsonify({'message': 'Token is invalid!'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
 # Fetch public key
 @app.route('/getPublicKey', methods=['GET'])
@@ -107,6 +126,7 @@ def get_public_key():
 # Upload file
 @app.route('/upload', methods=['POST'])
 @cross_origin()
+@token_required
 def upload():
     try:
         # Get file data from request
@@ -142,6 +162,7 @@ def upload():
 # Download file
 @app.route('/download', methods=['POST'])
 @cross_origin()
+@token_required
 def download():
     data = request.json
     user_id = data.get('userId')
@@ -184,6 +205,7 @@ def download():
 # Fetch all users
 @app.route('/users', methods=['GET'])
 @cross_origin()
+@token_required
 def get_users():
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
@@ -199,6 +221,7 @@ def get_users():
 # Reset the database
 @app.route('/reset', methods=['POST'])
 @cross_origin()
+@token_required
 def reset_database():
     # Drop the tables and reinitialize them
     with sqlite3.connect('database.db') as conn:
