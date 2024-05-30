@@ -62,7 +62,6 @@ def register():
                       (username, hashed_password, public_key, salt))
             c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
             user = c.fetchone()
-            print(user)
             conn.commit()
         return jsonify({"message": "User registered successfully", "user_id": user[0]}), 201
     except sqlite3.IntegrityError:

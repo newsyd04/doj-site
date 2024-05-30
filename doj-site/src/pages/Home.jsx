@@ -6,7 +6,7 @@ import '@carbon/react/scss/components/text-input/_index.scss';
 import '@carbon/react/scss/components/button/_index.scss';
 import '@carbon/react/scss/components/stack/_index.scss';
 
-export default function Home({ setUsername, setPassword, setMessage, userId, setUserId}) {
+export default function Home({ setUsername, setPassword, showToast, userId, setUserId, }) {
 
     const [registerUsername, setRegisterUsername] = useState('');
     const [registerPassword, setRegisterPassword] = useState('');
@@ -61,7 +61,7 @@ export default function Home({ setUsername, setPassword, setMessage, userId, set
         const publicKey = await exportKey(keyPair.publicKey);
 
         if (registerPassword !== confirmRegisterPassword) {
-          setMessage('Passwords do not match.');
+          showToast('Passwords do not match.', true);
           return;
         }
         try {
@@ -74,13 +74,13 @@ export default function Home({ setUsername, setPassword, setMessage, userId, set
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const data = await response.json();
-          setMessage(data.message);
+          showToast(data.message, false);
           setUserId(data.user_id);
           setUsername(registerUsername);
           navigate('/fileUpload');
         } catch (error) {
           console.error('Error:', error);
-          setMessage('Error registering user.');
+          showToast('Error registering user.', true);
         }
       };
 
@@ -101,10 +101,10 @@ export default function Home({ setUsername, setPassword, setMessage, userId, set
             navigate('/fileUpload');
             //fetchFiles();  // Fetch files upon login
           }
-          setMessage(data.message);
+          showToast(data.message, false);
         } catch (error) {
           console.error('Error:', error);
-          setMessage('Error logging in.');
+          showToast('Error logging in.', true);
         }
       };
 
