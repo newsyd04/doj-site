@@ -64,6 +64,15 @@ export default function Home({ showToast, setUserId, setJWT}) {
         showToast('Passwords do not match.', true);
         return;
       }
+      if (!(registerPassword.length > 8 )) {
+          showToast('Password must be at least 8 characters long', true);
+          return;
+        }
+      if (!(/[A-Z]/.test(registerPassword) &&
+      /[!@#$%^&*(),.?":{}|<>]/.test(registerPassword))){
+        showToast('Password must contain at least one uppercase letter and one special character.', true);
+        return;
+      }
       try {
         const response = await fetch('http://127.0.0.1:5000/register', {
           method: 'POST',
