@@ -7,6 +7,8 @@ import jwt
 import sqlite3
 import os
 import base64
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -14,6 +16,13 @@ CORS(app)  # Enable CORS for all routes
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SECRET_KEY'] = 'your_secret_key'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Initialize Flask-Limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"]
+)
 
 # Initialize SQLite database
 def init_db():
@@ -48,6 +57,7 @@ init_db()
 # Register a new user
 @app.route('/register', methods=['POST'])
 @cross_origin()
+@limiter.limit("5 per minute")
 def register():
     # Get user data from request
     data = request.json
@@ -75,6 +85,7 @@ def register():
 # Login user
 @app.route('/login', methods=['POST'])
 @cross_origin()
+@limiter.limit("5 per minute")
 def login():
     # Get user data from request
     data = request.json
@@ -114,6 +125,7 @@ def token_required(f):
 # Fetch public key
 @app.route('/getPublicKey', methods=['GET'])
 @cross_origin()
+@limiter.limit("10 per minute")
 def get_public_key():
     # Get username from request
     username = request.args.get('userId')
@@ -132,6 +144,7 @@ def get_public_key():
 @app.route('/upload', methods=['POST'])
 @cross_origin()
 @token_required
+@limiter.limit("10 per minute")
 def upload():
     try:
         # Get file data from request
@@ -168,6 +181,7 @@ def upload():
 @app.route('/download', methods=['POST'])
 @cross_origin()
 @token_required
+@limiter.limit("10 per minute")
 def download():
     data = request.json
     user_id = data.get('userId')
@@ -208,6 +222,7 @@ def download():
 @app.route('/users', methods=['GET'])
 @cross_origin()
 @token_required
+@limiter.limit("10 per minute")
 def get_users():
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
@@ -224,6 +239,7 @@ def get_users():
 @app.route('/reset', methods=['POST'])
 @cross_origin()
 @token_required
+@limiter.limit("1 per minute")
 def reset_database():
     # Drop the tables and reinitialize them
     with sqlite3.connect('database.db') as conn:
