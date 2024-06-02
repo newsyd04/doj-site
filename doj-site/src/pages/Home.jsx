@@ -60,7 +60,12 @@ export default function Home({ showToast, setUserId, setJWT}) {
       const keyPair = await generateKeyPair();
       const publicKey = await exportKey(keyPair.publicKey);
 
-      if (registerPassword !== confirmRegisterPassword) {
+      // Sanitize user input
+      const sanitizedUsername = registerUsername.trim();
+      const sanitizedPassword = registerPassword.trim();
+      const sanitizedConfirmPassword = confirmRegisterPassword.trim();
+
+      if (sanitizedPassword !== sanitizedConfirmPassword) {
         showToast('Passwords do not match.', true);
         return;
       }
@@ -77,7 +82,10 @@ export default function Home({ showToast, setUserId, setJWT}) {
         const response = await fetch('http://127.0.0.1:5000/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ registerUsername, registerPassword, public_key: publicKey })
+          body: JSON.stringify({
+            registerUsername: sanitizedUsername,
+            registerPassword: sanitizedPassword,
+            public_key: publicKey })
         });
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
