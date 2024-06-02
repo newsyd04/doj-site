@@ -256,6 +256,7 @@ export default function FileUpload({ showToast, JWT , userId}) {
             value={recipient}
             onChange={e => setRecipient(e.target.value)}
           >
+            <option value="">Select recipient</option>
             {users.map(user => (
               <option key={user} value={user}>{user}</option>
             ))}
@@ -270,6 +271,7 @@ export default function FileUpload({ showToast, JWT , userId}) {
             value={selectedFile ? selectedFile.content : ''}
             onChange={e => setSelectedFile(files.find(file => file.content === e.target.value))}
           >
+            <option value="">Select file</option>
             {files.map(file => (
               <option key={file.content} value={file.content}>{file.filename}</option>
             ))}
