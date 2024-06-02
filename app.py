@@ -11,7 +11,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for all routes
 
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -113,6 +113,7 @@ def token_required(f):
         try:
             token = auth_header.split(" ")[1]  # Extract token after 'Bearer'
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+            print("Decoded JWT data:", data)  # Debugging line
         except IndexError:
             return jsonify({'message': 'Token is missing!'}), 403
         except jwt.ExpiredSignatureError:
@@ -128,16 +129,22 @@ def token_required(f):
 @token_required
 @limiter.limit("10 per minute")
 def get_public_key():
-    # Get username from request
-    username = request.args.get('userId')
-    # Fetch public key from the database
+    user_id_or_name = request.args.get('userId')
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
-        c.execute('SELECT public_key FROM users WHERE username = ?', (username,))
+        # Check if the provided identifier is a username or an ID
+        if user_id_or_name.isdigit():
+            c.execute('SELECT public_key FROM users WHERE id = ?', (user_id_or_name,))
+        else:
+            c.execute('SELECT public_key FROM users WHERE username = ?', (user_id_or_name,))
         user = c.fetchone()
-        # Return the public key if the user exists
         if user:
-            return jsonify({"public_key": user[0]}), 200
+            public_key = user[0]
+            try:
+                base64.b64decode(public_key)  # Validate base64 format
+                return jsonify({"public_key": public_key}), 200
+            except Exception as e:
+                return jsonify({"message": "Invalid public key format"}), 400
         else:
             return jsonify({"message": "User not found"}), 404
 
@@ -148,7 +155,6 @@ def get_public_key():
 @limiter.limit("10 per minute")
 def upload():
     try:
-        # Get file data from request
         data = request.json
         file_content = data['fileContent']
         uploader_id = data['uploaderId']
@@ -156,27 +162,44 @@ def upload():
         original_filename = data['filename']
         file_type = data['fileType']
         
+        print(f"Received upload request: uploader_id={uploader_id}, recipient={recipient_username}, filename={original_filename}, file_type={file_type}")
+
+        if ':' not in file_content:
+            return jsonify({"message": "Invalid file content format"}), 400
+
         with sqlite3.connect('database.db') as conn:
             c = conn.cursor()
-            # Check if the recipient exists
             c.execute('SELECT id FROM users WHERE username = ?', (recipient_username,))
             recipient = c.fetchone()
             if recipient:
-                recipient_id = recipient[0] # Get the recipient ID
-                filename = base64.b64encode(os.urandom(16)).decode('utf-8') # Generate a random filename
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename) # Store the file in the uploads folder
-                with open(file_path, 'wb') as f:
-                    f.write(file_content.encode())  # Store as text
-                # Insert file data into the database
-                c.execute('INSERT INTO files (filename, original_filename, file_type, uploader_id, recipient_id) VALUES (?, ?, ?, ?, ?)', 
-                          (filename, original_filename, file_type, uploader_id, recipient_id))
-                conn.commit()
+                recipient_id = recipient[0]
+                filename = base64.b64encode(os.urandom(16)).decode('utf-8')
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                
+                try:
+                    with open(file_path, 'w') as f:
+                        f.write(file_content)
+                        print(f"File written to {file_path} successfully")
+                except Exception as e:
+                    print(f"Error writing file: {e}")
+                    return jsonify({"message": "Error writing file"}), 500
+
+                try:
+                    c.execute('INSERT INTO files (filename, original_filename, file_type, uploader_id, recipient_id) VALUES (?, ?, ?, ?, ?)', 
+                              (filename, original_filename, file_type, uploader_id, recipient_id))
+                    conn.commit()
+                    print(f"File metadata inserted into database successfully")
+                except Exception as e:
+                    print(f"Error inserting into database: {e}")
+                    return jsonify({"message": "Error inserting into database"}), 500
+
                 return jsonify({"message": "File uploaded successfully"}), 201
             else:
+                print("Recipient not found")
                 return jsonify({"message": "Recipient not found"}), 404
     except Exception as e:
+        print(f"Internal server error: {e}")
         return jsonify({"message": "Internal Server Error", "error": str(e)}), 500
-
 
 # Download file
 @app.route('/download', methods=['POST'])
@@ -192,24 +215,25 @@ def download():
     
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
-        c.execute('SELECT filename, original_filename, file_type FROM files WHERE recipient_id = ?', (user_id,)) # Fetch files uploaded for the user
+        c.execute('SELECT filename, original_filename, file_type FROM files WHERE recipient_id = ?', (user_id,))
         files = c.fetchall()
         
         if not files:
-            return jsonify({"message": "No files found"}), 404 # Return 404 if no files are found
+            return jsonify({"fileContent": []}), 200
         
         file_content = []
         for file in files:
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file[0]) # Get the file path
-            if os.path.exists(file_path): # Check if the file exists
-                with open(file_path, 'r') as f: # Open the file
-                    file_content.append({ # Append the file content to the list
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file[0])
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    content = f.read()
+                    file_content.append({
                         "filename": file[1],
                         "fileType": file[2],
-                        "content": f.read()  # Read as text
+                        "content": content
                     })
             else:
-                file_content.append({ # Append an error message if the file is not found
+                file_content.append({
                     "filename": file[1],
                     "fileType": file[2],
                     "content": None,
@@ -217,7 +241,6 @@ def download():
                 })
         
         return jsonify({"fileContent": file_content}), 200
-
 
 # Fetch all users
 @app.route('/users', methods=['GET'])
@@ -227,13 +250,10 @@ def download():
 def get_users():
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
-        # Fetch all users from the database
         c.execute('SELECT username FROM users')
-        # Convert the list of tuples to a list of strings
         users = c.fetchall()
-        # Extract the usernames from the list of tuples
+        print("Fetched users:", users)
         user_list = [user[0] for user in users]
-        # Return the list of usernames
         return jsonify({"users": user_list}), 200
 
 # Reset the database
@@ -242,13 +262,10 @@ def get_users():
 @token_required
 @limiter.limit("1 per minute")
 def reset_database():
-    # Drop the tables and reinitialize them
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
-        # Drop the tables
         c.execute('DROP TABLE IF EXISTS users')
         c.execute('DROP TABLE IF EXISTS files')
-        # Reinitialize the database
         init_db()
         return jsonify({"message": "Database reset successfully"}), 200
 

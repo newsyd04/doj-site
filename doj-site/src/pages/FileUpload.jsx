@@ -9,44 +9,54 @@ export default function FileUpload({ showToast, JWT , userId}) {
     const [recipient, setRecipient] = useState('');
     const [users, setUsers] = useState([]);
 
-    const fetchPublicKey = async (username) => {
-        try {
-          const response = await fetch(`http://127.0.0.1:5000/getPublicKey`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${JWT}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username })
+    const fetchPublicKey = async (usernameOrId) => {
+      try {
+          const response = await fetch(`http://127.0.0.1:5000/getPublicKey?userId=${usernameOrId}`, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${JWT}`, 'Content-Type': 'application/json' }
           });
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
           const data = await response.json();
           return await importKey(data.public_key);
-        } catch (error) {
+      } catch (error) {
           console.error('Error fetching public key:', error);
           throw error;
-        }
-    };
-
-    const importKey = async (keyData) => {
-      try {
-          const binaryKey = base64ToBuffer(keyData);
-          return await crypto.subtle.importKey("spki", binaryKey, {
-          name: "ECDH",
-          namedCurve: "P-256"
-          }, true, []);
-      } catch (error) {
-          console.error('Error importing key:', error);
-          throw error;
       }
-    };
+  };
+  
+  
 
-    const base64ToBuffer = (base64) => {
-      const binary = window.atob(base64);
-      const len = binary.length;
-      const buffer = new Uint8Array(len);
+  const importKey = async (keyData) => {
+    try {
+        const binaryKey = base64ToBuffer(keyData);
+        return await crypto.subtle.importKey("spki", binaryKey, {
+            name: "ECDH",
+            namedCurve: "P-256"
+        }, true, []);
+    } catch (error) {
+        console.error('Error importing key:', error);
+        throw error;
+    }
+};
+
+
+const base64ToBuffer = (base64) => {
+  try {
+      console.log("Base64 string to decode:", base64);
+      const binaryString = window.atob(base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
       for (let i = 0; i < len; i++) {
-        buffer[i] = binary.charCodeAt(i);
+          bytes[i] = binaryString.charCodeAt(i);
       }
-      return buffer.buffer;
-    };
-
+      return bytes.buffer;
+  } catch (error) {
+      console.error('Error decoding base64 string:', error);
+      throw error;
+  }
+};
         
     // Helper functions to convert between buffers and base64 strings
     const bufferToBase64 = (buffer) => {
@@ -69,12 +79,21 @@ export default function FileUpload({ showToast, JWT , userId}) {
           name: "AES-GCM",
           iv: iv
         }, key, encoded);
-        return bufferToBase64(iv) + ':' + bufferToBase64(encrypted);
+        
+        const ivBase64 = bufferToBase64(iv);
+        const encryptedBase64 = bufferToBase64(encrypted);
+        
+        console.log("IV (base64):", ivBase64);
+        console.log("Encrypted data (base64):", encryptedBase64);
+        
+        return `${ivBase64}:${encryptedBase64}`;
       } catch (error) {
         console.error('Error encrypting data:', error);
         throw error;
       }
     };
+    
+
 
     useEffect(() => {
       fetchUsers();
@@ -99,59 +118,97 @@ export default function FileUpload({ showToast, JWT , userId}) {
     };
 
     const handleFileUpload = async () => {
-
-      const fileContent = await file.text();
-      const keyPair = await getKeyPair();
-      const recipientPublicKey = await fetchPublicKey(recipient);
-      const secretKey = await deriveSecretKey(keyPair.privateKey, recipientPublicKey);
-      const encryptedContent = await encryptData(secretKey, fileContent);
-
       try {
+        if (!file) {
+          showToast('No file selected.', true);
+          return;
+        }
+        if (!recipient) {
+          showToast('No recipient selected.', true);
+          return;
+        }
+    
+        const fileContent = await file.text();
+        const keyPair = await getKeyPair();
+        const recipientPublicKey = await fetchPublicKey(recipient);
+        const secretKey = await deriveSecretKey(keyPair.privateKey, recipientPublicKey);
+        const encryptedContent = await encryptData(secretKey, fileContent);
+    
+        if (!encryptedContent) {
+          throw new Error('Encryption failed, no data returned');
+        }
+    
+        console.log("Encrypted content (base64):", encryptedContent);
+        console.log("File details:", {
+          uploaderId: userId,
+          recipient,
+          filename: file.name,
+          fileType: file.type
+        });
+    
         const response = await fetch('http://127.0.0.1:5000/upload', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${JWT}`
+          },
           body: JSON.stringify({
-            fileContent: encryptedContent, 
-            uploaderId: userId, 
+            fileContent: encryptedContent,
+            uploaderId: userId,
             recipient,
             filename: file.name,
             fileType: file.type
           })
         });
+    
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         showToast(data.message, false);
-        fetchFiles();  // Fetch files after uploading a new file
+        fetchFiles();
       } catch (error) {
         console.error('Error:', error);
         showToast('Error uploading file.', true);
       }
     };
+  
+  
+  
+  
     
     const fetchFiles = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:5000/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId })
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        if (data.fileContent) {
-          setFiles(data.fileContent);
-          setSelectedFile(data.fileContent[0] || null);
-        } else {
-          showToast('No files found.', true);
-        }
+          const response = await fetch('http://127.0.0.1:5000/download', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${JWT}`
+              },
+              body: JSON.stringify({ userId })
+          });
+    
+          if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+          }
+    
+          const data = await response.json();
+          if (data.fileContent && data.fileContent.length > 0) {
+              setFiles(data.fileContent);
+              setSelectedFile(data.fileContent[0] || null);
+          } else {
+              showToast('No files found.', true);
+              setFiles([]);
+              setSelectedFile(null);
+          }
       } catch (error) {
-        console.error('Error:', error);
-        showToast('Error fetching files.', true);
+          console.error('Error:', error);
+          showToast('Error fetching files.', true);
       }
     };
+    
+
+
 
     // WebCrypto functions
     const generateKeyPair = async () => {
@@ -217,28 +274,52 @@ export default function FileUpload({ showToast, JWT , userId}) {
     };
       
     const handleFileDownload = async () => {
-
-      const keyPair = await getKeyPair();
-      const recipientPublicKey = await fetchPublicKey(userId);
-      const secretKey = await deriveSecretKey(keyPair.privateKey, recipientPublicKey);
-      const decryptedContent = await decryptData(secretKey, selectedFile.content);
-      const blob = new Blob([decryptedContent], { type: selectedFile.fileType });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = selectedFile.filename;
-      a.click();
-      window.URL.revokeObjectURL(url);
+      try {
+        const keyPair = await getKeyPair();
+        const recipientPublicKey = await fetchPublicKey(userId);
+        const secretKey = await deriveSecretKey(keyPair.privateKey, recipientPublicKey);
+        const decryptedContent = await decryptData(secretKey, selectedFile.content);
+    
+        if (!decryptedContent) {
+          throw new Error('Decryption failed, no data returned');
+        }
+    
+        console.log("Decrypted content:", decryptedContent);
+    
+        const blob = new Blob([decryptedContent], { type: selectedFile.fileType });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = selectedFile.filename;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error:', error);
+      }
     };
-
         
     const decryptData = async (key, data) => {
       try {
-        const [iv, encryptedData] = data.split(':').map(base64ToBuffer);
+        const [ivBase64, encryptedDataBase64] = data.split(':');
+    
+        console.log("IV base64:", ivBase64);
+        console.log("Encrypted data base64:", encryptedDataBase64);
+    
+        if (!ivBase64 || !encryptedDataBase64) {
+          throw new Error("Invalid data format for decryption.");
+        }
+    
+        const iv = base64ToBuffer(ivBase64);
+        const encryptedData = base64ToBuffer(encryptedDataBase64);
+    
+        console.log("IV buffer:", iv);
+        console.log("Encrypted data buffer:", encryptedData);
+    
         const decrypted = await crypto.subtle.decrypt({
           name: "AES-GCM",
           iv: iv
         }, key, encryptedData);
+    
         const decoder = new TextDecoder();
         return decoder.decode(decrypted);
       } catch (error) {
@@ -246,6 +327,10 @@ export default function FileUpload({ showToast, JWT , userId}) {
         throw error;
       }
     };
+    
+    
+  
+
 
     return (
       <div className='grid'>
