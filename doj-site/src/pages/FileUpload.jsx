@@ -11,7 +11,11 @@ export default function FileUpload({ showToast, JWT , userId}) {
 
     const fetchPublicKey = async (username) => {
         try {
-          const response = await fetch(`http://127.0.0.1:5000/getPublicKey?userId=${userId}`);
+          const response = await fetch(`http://127.0.0.1:5000/getPublicKey`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${JWT}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
           const data = await response.json();
           return await importKey(data.public_key);
         } catch (error) {

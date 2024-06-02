@@ -125,6 +125,7 @@ def token_required(f):
 # Fetch public key
 @app.route('/getPublicKey', methods=['GET'])
 @cross_origin()
+@token_required
 @limiter.limit("10 per minute")
 def get_public_key():
     # Get username from request
