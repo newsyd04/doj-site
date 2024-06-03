@@ -1,22 +1,27 @@
 import { React, useState } from 'react';
-import { Tile, TextInput, FormGroup, Button } from '@carbon/react';
+import { Tile, TextInput, FormGroup, Button, Modal } from '@carbon/react';
 import { useNavigate } from 'react-router-dom';
 import '@carbon/react/scss/components/tile/_index.scss';
 import '@carbon/react/scss/components/text-input/_index.scss';
 import '@carbon/react/scss/components/button/_index.scss';
 import '@carbon/react/scss/components/stack/_index.scss';
-
+import '@carbon/react/scss/components/modal/_index.scss';
+ 
 export default function Home({ showToast, setUserId, setJWT}) {
-
+ 
     const [registerUsername, setRegisterUsername] = useState('');
     const [registerPassword, setRegisterPassword] = useState('');
     const [confirmRegisterPassword, setConfirmRegisterPassword] = useState('');
-
+    const [registerPhone, setRegisterPhone] = useState('+353 ');
+    const [open, setOpen] = useState(false);
+    const [verificationCode, setVerificationCode] = useState('');
+    const [usersPhone, setUsersPhone] = useState('');
+ 
     const [signInUsername, setSignInUsername] = useState('');
     const [signInPassword, setSignInPassword] = useState('');
-
+ 
     const navigate = useNavigate();
-
+ 
       // Generate an ECDH key pair with P-256 curve
     const generateKeyPair = async () => {
       try {
@@ -31,7 +36,7 @@ export default function Home({ showToast, setUserId, setJWT}) {
       throw error;
       }
     };
-
+ 
       // Export the public key in SPKI format
     const exportKey = async (key) => {
         try {
@@ -42,8 +47,8 @@ export default function Home({ showToast, setUserId, setJWT}) {
         throw error;
         }
     };
-
-    
+ 
+   
     // Helper functions to convert between buffers and base64 strings
     const bufferToBase64 = (buffer) => {
         let binary = ''; // Create a binary string from the buffer
@@ -54,17 +59,18 @@ export default function Home({ showToast, setUserId, setJWT}) {
         }
         return window.btoa(binary); // Return the base64 string
     };
-    
-
+   
+ 
     const handleRegister = async () => {
       const keyPair = await generateKeyPair();
       const publicKey = await exportKey(keyPair.publicKey);
-
+ 
       // Sanitize user input
       const sanitizedUsername = registerUsername.trim();
       const sanitizedPassword = registerPassword.trim();
       const sanitizedConfirmPassword = confirmRegisterPassword.trim();
-
+      const sanitizedPhone = registerPhone.trim();
+ 
       if (sanitizedPassword !== sanitizedConfirmPassword) {
         showToast('Passwords do not match.', true);
         return;
@@ -85,6 +91,7 @@ export default function Home({ showToast, setUserId, setJWT}) {
           body: JSON.stringify({
             registerUsername: sanitizedUsername,
             registerPassword: sanitizedPassword,
+            registerPhone: sanitizedPhone,
             public_key: publicKey })
         });
         if (!response.ok) {
@@ -100,7 +107,7 @@ export default function Home({ showToast, setUserId, setJWT}) {
         showToast('Error registering user.', true);
       }
     };
-
+ 
       const handleLogin = async () => {
         try {
           const response = await fetch('http://127.0.0.1:5000/login', {
@@ -112,19 +119,48 @@ export default function Home({ showToast, setUserId, setJWT}) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const data = await response.json();
-          if (data.user_id) {
-            setUserId(data.user_id);
-            setJWT(data.token);
-            navigate('/fileUpload');
-            //fetchFiles();  // Fetch files upon login
+          console.log(JSON.stringify(data));
+          if (data.phone){
+            setUsersPhone(data.phone);
+            setOpen(true);
           }
+          // if (data.user_id) {
+          //   setUserId(data.user_id);
+          //   setJWT(data.token);
+          //   navigate('/fileUpload');
+          //   //fetchFiles();  // Fetch files upon login
+          // }
           showToast(data.message, false);
         } catch (error) {
           console.error('Error:', error);
           showToast('Error logging in.', true);
         }
       };
-
+ 
+      const sendVerificationCode = async () => {
+        setOpen(false);
+        try {
+          const response = await fetch('http://127.0.0.1:5000/verifyCode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ signInUsername, signInPassword, verificationCode })
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          const data = await response.json();
+          if (data.user_id) {
+            setUserId(data.user_id);
+            setJWT(data.token);
+            navigate('/fileUpload');
+            //fetchFiles();  // Fetch files upon login
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          showToast('Error verifying code.', true);
+        }
+      }
+ 
     return (
       <div className='tile-container' style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Tile style={{ border: '5px solid rgb(54, 198, 255)', width: '45%' }}>
@@ -137,6 +173,14 @@ export default function Home({ showToast, setUserId, setJWT}) {
                           autoComplete="true"
                           value={registerUsername}
                           onChange={(e) => setRegisterUsername(e.target.value)}
+                      />
+                      <TextInput
+                          id="register-phone"
+                          labelText="Phone Number"
+                          autoComplete="true"
+                          value={registerPhone}
+                          onChange={(e) => setRegisterPhone(e.target.value)}
+                          type="tel"
                       />
                       <TextInput.PasswordInput
                           id="register-password"
@@ -177,7 +221,17 @@ export default function Home({ showToast, setUserId, setJWT}) {
                       />
                   </FormGroup>
                   <br />
-                  <Button onClick={handleLogin}>Sign In</Button>
+                  <Button onClick={handleLogin}>Sign In</Button>              
+                  <Modal open={open} onRequestClose={() => setOpen(false)} onRequestSubmit={sendVerificationCode} modalHeading="Confirm Verification Code" primaryButtonText="Confirm" secondaryButtonText="Cancel">
+                    <p>Please enter the verification code sent to {usersPhone}</p>
+                    <TextInput
+                      id="verification-code"
+                      labelText="Verification Code"
+                      autoComplete="true"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                    />
+                  </Modal>
               </div>
           </Tile>
       </div>
