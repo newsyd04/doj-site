@@ -20,6 +20,10 @@ This is a Secure File Sharing Application that allows users to securely upload a
 - Public Key Encryption
 - Cross-Origin Resource Sharing (CORS) enabled
 - User and File Management
+- JWT Session Authentication
+- Rate Limiting enabled
+- Minimum Password Requirements
+- SQL Injection Attcak Prevention
 
 ## Technology Stack
 - **Frontend**: React.js
