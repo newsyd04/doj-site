@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for all routes
  
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['SECRET_KEY'] = 'your_secret_key'
+app.config['GLYNNY_KEY'] = 'your_secret_key'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 account_sid = 'AC4d823c1fddffabcb067008f2e8b263ab'
 auth_token = '9295a1344feaf8046b4a63e34a840535'
@@ -86,7 +86,7 @@ def register():
             c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
             user = c.fetchone()
             conn.commit()
-        token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'], algorithm="HS256")
+        token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, app.config['GLYNNY_KEY'], algorithm="HS256")
         return jsonify({"message": "User registered successfully", "user_id": user[0], "token": token}), 201
     except sqlite3.IntegrityError:
         return jsonify({"message": "Username already exists"}), 400
@@ -132,7 +132,7 @@ def verify_code():
         c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
         user = c.fetchone()
         if user and verification_code and check_password_hash(user[1], password + user[2]) and check_verification_code(username, verification_code):
-            token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'], algorithm="HS256")
+            token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, app.config['GLYNNY_KEY'], algorithm="HS256")
             return jsonify({"message": "Login successful", "user_id": user[0], "token": token}), 200
         else:
             return jsonify({"message": "Invalid username or password or verification code"}), 401
@@ -161,7 +161,7 @@ def token_required(f):
  
         try:
             token = auth_header.split(" ")[1]  # Extract token after 'Bearer'
-            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+            data = jwt.decode(token, app.config['GLYNNY_KEY'], algorithms=["HS256"])
             print("Decoded JWT data:", data)  # Debugging line
         except IndexError:
             return jsonify({'message': 'Token is missing!'}), 403
