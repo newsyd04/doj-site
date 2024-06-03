@@ -23,7 +23,8 @@ This is a Secure File Sharing Application that allows users to securely upload a
 - JWT Session Authentication
 - Rate Limiting enabled
 - Minimum Password Requirements
-- SQL Injection Attcak Prevention
+- SQL Injection Attack Prevention
+- 2 Factor Authentication
 
 ## Technology Stack
 - **Frontend**: React.js
