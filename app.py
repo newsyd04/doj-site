@@ -18,9 +18,10 @@ CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for all routes
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['SECRET_KEY'] = 'your_secret_key'
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-account_sid = 'AC4d823c1fddffabcb067008f2e8b263ab'
-auth_token = '9295a1344feaf8046b4a63e34a840535'
-twilio_phone_number = '+14795527254'
+account_sid = os.getenv('ACCOUNT_SID')
+token_secret_key = os.getenv('TOKEN_SECRET_KEY')
+auth_token = os.getenv('AUTH_TOKEN')
+twilio_phone_number = os.getenv('TWILIO_PHONE_NUMBER')
 client = Client(account_sid, auth_token)
  
 # Initialize Flask-Limiter
@@ -86,7 +87,7 @@ def register():
             c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
             user = c.fetchone()
             conn.commit()
-        token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'], algorithm="HS256")
+        token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, token_secret_key, algorithm="HS256")
         return jsonify({"message": "User registered successfully", "user_id": user[0], "token": token}), 201
     except sqlite3.IntegrityError:
         return jsonify({"message": "Username already exists"}), 400
@@ -132,7 +133,7 @@ def verify_code():
         c.execute('SELECT id, password, salt FROM users WHERE username = ?', (username,))
         user = c.fetchone()
         if user and verification_code and check_password_hash(user[1], password + user[2]) and check_verification_code(username, verification_code):
-            token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'], algorithm="HS256")
+            token = jwt.encode({'user': username, 'exp': datetime.datetime.now() + datetime.timedelta(minutes=30)}, token_secret_key, algorithm="HS256")
             return jsonify({"message": "Login successful", "user_id": user[0], "token": token}), 200
         else:
             return jsonify({"message": "Invalid username or password or verification code"}), 401
