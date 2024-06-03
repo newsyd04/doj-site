@@ -1,4 +1,7 @@
-# Secure File Sharing Application
+# CS4455 Secure File Sharing Application
+- Oisin O'Sullivan - 22368493
+- Dara Newsome - 22351434
+- John Foley - 22366741
 
 ## Table of Contents
 - [Introduction](#introduction)
