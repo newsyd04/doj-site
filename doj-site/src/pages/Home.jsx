@@ -9,6 +9,7 @@ import '@carbon/react/scss/components/modal/_index.scss';
  
 export default function Home({ showToast, setUserId, setJWT}) {
  
+    // register state variables
     const [registerUsername, setRegisterUsername] = useState('');
     const [registerPassword, setRegisterPassword] = useState('');
     const [confirmRegisterPassword, setConfirmRegisterPassword] = useState('');
@@ -17,12 +18,13 @@ export default function Home({ showToast, setUserId, setJWT}) {
     const [verificationCode, setVerificationCode] = useState('');
     const [usersPhone, setUsersPhone] = useState('');
  
+    // sign in state variables
     const [signInUsername, setSignInUsername] = useState('');
     const [signInPassword, setSignInPassword] = useState('');
  
     const navigate = useNavigate();
  
-      // Generate an ECDH key pair with P-256 curve
+    // Generate an ECDH key pair with P-256 curve
     const generateKeyPair = async () => {
       try {
       // Generate an ECDH key pair with P-256 curve
@@ -61,6 +63,7 @@ export default function Home({ showToast, setUserId, setJWT}) {
     };
    
  
+    // Register a new user
     const handleRegister = async () => {
       const keyPair = await generateKeyPair();
       const publicKey = await exportKey(keyPair.publicKey);
@@ -71,20 +74,24 @@ export default function Home({ showToast, setUserId, setJWT}) {
       const sanitizedConfirmPassword = confirmRegisterPassword.trim();
       const sanitizedPhone = registerPhone.trim();
  
+      // Check if passwords match
       if (sanitizedPassword !== sanitizedConfirmPassword) {
         showToast('Passwords do not match.', true);
         return;
       }
+      // Ensure password meets length requirements
       if (!(registerPassword.length > 8 )) {
           showToast('Password must be at least 8 characters long', true);
           return;
         }
+      // Ensure password contains at least one uppercase letter and one special character
       if (!(/[A-Z]/.test(registerPassword) &&
       /[!@#$%^&*(),.?":{}|<>]/.test(registerPassword))){
         showToast('Password must contain at least one uppercase letter and one special character.', true);
         return;
       }
       try {
+        // send post request to register user
         const response = await fetch('http://127.0.0.1:3500/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -98,6 +105,7 @@ export default function Home({ showToast, setUserId, setJWT}) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
+        // handle response and display notification
         showToast(data.message, false);
         setUserId(data.user_id);
         setJWT(data.token);
@@ -108,8 +116,10 @@ export default function Home({ showToast, setUserId, setJWT}) {
       }
     };
  
+      // Sign in a user
       const handleLogin = async () => {
         try {
+          // send login request with username and password
           const response = await fetch('http://127.0.0.1:3500/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -120,16 +130,11 @@ export default function Home({ showToast, setUserId, setJWT}) {
           }
           const data = await response.json();
           console.log(JSON.stringify(data));
+          // get users phone from response and open modal
           if (data.phone){
             setUsersPhone(data.phone);
             setOpen(true);
           }
-          // if (data.user_id) {
-          //   setUserId(data.user_id);
-          //   setJWT(data.token);
-          //   navigate('/fileUpload');
-          //   //fetchFiles();  // Fetch files upon login
-          // }
           showToast(data.message, false);
         } catch (error) {
           console.error('Error:', error);
@@ -137,9 +142,11 @@ export default function Home({ showToast, setUserId, setJWT}) {
         }
       };
  
+      // Verify the verification code
       const sendVerificationCode = async () => {
         setOpen(false);
         try {
+          // send post request to verify code
           const response = await fetch('http://127.0.0.1:3500/verifyCode', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -149,11 +156,12 @@ export default function Home({ showToast, setUserId, setJWT}) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const data = await response.json();
+          // handle response and display notification
+          // response should contain JWT
           if (data.user_id) {
             setUserId(data.user_id);
             setJWT(data.token);
             navigate('/fileUpload');
-            //fetchFiles();  // Fetch files upon login
           }
         } catch (error) {
           console.error('Error:', error);

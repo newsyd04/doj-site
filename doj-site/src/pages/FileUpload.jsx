@@ -9,6 +9,7 @@ export default function FileUpload({ showToast, JWT , userId}) {
     const [recipient, setRecipient] = useState('');
     const [users, setUsers] = useState([]);
 
+    // Helper function to fetch a user's public key
     const fetchPublicKey = async (usernameOrId) => {
       try {
           const response = await fetch(`http://127.0.0.1:3500/getPublicKey?userId=${usernameOrId}`, {
@@ -27,9 +28,10 @@ export default function FileUpload({ showToast, JWT , userId}) {
   };
   
   
-
+  // Helper function to import a public key
   const importKey = async (keyData) => {
     try {
+        // Convert the base64 string to a buffer
         const binaryKey = base64ToBuffer(keyData);
         return await crypto.subtle.importKey("spki", binaryKey, {
             name: "ECDH",
@@ -41,9 +43,10 @@ export default function FileUpload({ showToast, JWT , userId}) {
     }
 };
 
-
+// Helper function to convert a base64 string to a buffer
 const base64ToBuffer = (base64) => {
   try {
+      // Convert the base64 string to a binary string
       console.log("Base64 string to decode:", base64);
       const binaryString = window.atob(base64);
       const len = binaryString.length;
@@ -69,12 +72,14 @@ const base64ToBuffer = (base64) => {
       return window.btoa(binary); // Return the base64 string
     };
 
-    
+    // Helper function to encrypt data
     const encryptData = async (key, data) => {
       try {
         const encoder = new TextEncoder();
         const encoded = encoder.encode(data);
+        // get initialization vector
         const iv = crypto.getRandomValues(new Uint8Array(12));
+        // encrypt the data using AES-GCM
         const encrypted = await crypto.subtle.encrypt({
           name: "AES-GCM",
           iv: iv
@@ -93,12 +98,12 @@ const base64ToBuffer = (base64) => {
       }
     };
     
-
-
+    // Fetch users on component mount
     useEffect(() => {
       fetchUsers();
     }, []);
 
+    // Fetch users
     const fetchUsers = async () => {
       try {
         const response = await fetch('http://127.0.0.1:3500/users', {
@@ -117,17 +122,21 @@ const base64ToBuffer = (base64) => {
       }
     };
 
+    // Handle file upload
     const handleFileUpload = async () => {
       try {
+        // ensure file is uploaded
         if (!file) {
           showToast('No file selected.', true);
           return;
         }
+        // ensure recipient is selected
         if (!recipient) {
           showToast('No recipient selected.', true);
           return;
         }
     
+        // get recipients public key and encrypt the file
         const fileContent = await file.text();
         const keyPair = await getKeyPair();
         const recipientPublicKey = await fetchPublicKey(recipient);
@@ -146,6 +155,7 @@ const base64ToBuffer = (base64) => {
           fileType: file.type
         });
     
+        // upload the encrypted file
         const response = await fetch('http://127.0.0.1:3500/upload', {
           method: 'POST',
           headers: { 
@@ -173,10 +183,7 @@ const base64ToBuffer = (base64) => {
       }
     };
   
-  
-  
-  
-    
+    // Fetch files
     const fetchFiles = async () => {
       try {
           const response = await fetch('http://127.0.0.1:3500/download', {
@@ -192,8 +199,10 @@ const base64ToBuffer = (base64) => {
               throw new Error(`HTTP error! status: ${response.status}`);
           }
     
+
           const data = await response.json();
           if (data.fileContent && data.fileContent.length > 0) {
+              // set files and select the first file
               setFiles(data.fileContent);
               setSelectedFile(data.fileContent[0] || null);
           } else {
@@ -206,9 +215,7 @@ const base64ToBuffer = (base64) => {
           showToast('Error fetching files.', true);
       }
     };
-    
-
-
+  
 
     // WebCrypto functions
     const generateKeyPair = async () => {
@@ -223,6 +230,8 @@ const base64ToBuffer = (base64) => {
       }
     };
 
+    // Helper function to get the key pair
+    // Generates key pair if user does not have one
     const getKeyPair = async () => {
       if (!localStorage.getItem('privateKey') || !localStorage.getItem('publicKey')) {
         const keyPair = await generateKeyPair();
@@ -258,6 +267,7 @@ const base64ToBuffer = (base64) => {
       }
     };
 
+    // Helper function to derive a secret key
     const deriveSecretKey = async (privateKey, publicKey) => {
       try {
         return await crypto.subtle.deriveKey({
@@ -273,10 +283,14 @@ const base64ToBuffer = (base64) => {
       }
     };
       
+    // Handle file download
     const handleFileDownload = async () => {
       try {
+        // get users key pair and recipients address
         const keyPair = await getKeyPair();
         const recipientPublicKey = await fetchPublicKey(userId);
+
+        // decrypt the file
         const secretKey = await deriveSecretKey(keyPair.privateKey, recipientPublicKey);
         const decryptedContent = await decryptData(secretKey, selectedFile.content);
     
@@ -286,6 +300,7 @@ const base64ToBuffer = (base64) => {
     
         console.log("Decrypted content:", decryptedContent);
     
+        // download the decrypted file to users device
         const blob = new Blob([decryptedContent], { type: selectedFile.fileType });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -298,6 +313,7 @@ const base64ToBuffer = (base64) => {
       }
     };
         
+    // Helper function to decrypt data
     const decryptData = async (key, data) => {
       try {
         const [ivBase64, encryptedDataBase64] = data.split(':');
@@ -305,16 +321,19 @@ const base64ToBuffer = (base64) => {
         console.log("IV base64:", ivBase64);
         console.log("Encrypted data base64:", encryptedDataBase64);
     
+        // ensure data is in correct format
         if (!ivBase64 || !encryptedDataBase64) {
           throw new Error("Invalid data format for decryption.");
         }
     
+        // convert base64 strings to buffers
         const iv = base64ToBuffer(ivBase64);
         const encryptedData = base64ToBuffer(encryptedDataBase64);
     
         console.log("IV buffer:", iv);
         console.log("Encrypted data buffer:", encryptedData);
     
+        // decrypt the data using AES-GCM
         const decrypted = await crypto.subtle.decrypt({
           name: "AES-GCM",
           iv: iv
@@ -328,10 +347,6 @@ const base64ToBuffer = (base64) => {
       }
     };
     
-    
-  
-
-
     return (
       <div className='grid'>
       <div>

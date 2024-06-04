@@ -8,12 +8,14 @@ import '../src/App.css';
 import './styling/notification.css';
 
 function App() {
+  // declare state variables for notifations and JWTs
   const [message, setMessage] = useState('');
   const [userId, setUserId] = useState('');
   const [successToastOpen, setSuccessToastOpen] = useState(false);
   const [isErrorMessage, setIsErrorMessage] = useState(true);
   const [JWT, setJWT] = useState('');
 
+  // function to display notifications
   const showToast = (message, isErrorMessage) => {
     setMessage(message);
     setIsErrorMessage(isErrorMessage);
@@ -24,6 +26,7 @@ function App() {
     }, 6000);
   };
 
+  // return the app with the routes
   return (
     <div className="App container">
       <header className="App-header container">
