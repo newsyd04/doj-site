@@ -1,4 +1,7 @@
-# Secure File Sharing Application
+# CS4455 Secure File Sharing Application
+- Oisin O'Sullivan - 22368493
+- Dara Newsome - 22351434
+- John Foley - 22366741
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -23,7 +26,8 @@ This is a Secure File Sharing Application that allows users to securely upload a
 - JWT Session Authentication
 - Rate Limiting enabled
 - Minimum Password Requirements
-- SQL Injection Attcak Prevention
+- SQL Injection Attack Prevention
+- 2 Factor Authentication
 
 ## Technology Stack
 - **Frontend**: React.js
