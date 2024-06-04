@@ -11,7 +11,7 @@ export default function FileUpload({ showToast, JWT , userId}) {
 
     const fetchPublicKey = async (usernameOrId) => {
       try {
-          const response = await fetch(`http://127.0.0.1:5000/getPublicKey?userId=${usernameOrId}`, {
+          const response = await fetch(`http://127.0.0.1:3500/getPublicKey?userId=${usernameOrId}`, {
               method: 'GET',
               headers: { 'Authorization': `Bearer ${JWT}`, 'Content-Type': 'application/json' }
           });
@@ -101,7 +101,7 @@ const base64ToBuffer = (base64) => {
 
     const fetchUsers = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:5000/users', {
+        const response = await fetch('http://127.0.0.1:3500/users', {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${JWT}` , 'Content-Type': 'application/json' }
         });
@@ -146,7 +146,7 @@ const base64ToBuffer = (base64) => {
           fileType: file.type
         });
     
-        const response = await fetch('http://127.0.0.1:5000/upload', {
+        const response = await fetch('http://127.0.0.1:3500/upload', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -179,7 +179,7 @@ const base64ToBuffer = (base64) => {
     
     const fetchFiles = async () => {
       try {
-          const response = await fetch('http://127.0.0.1:5000/download', {
+          const response = await fetch('http://127.0.0.1:3500/download', {
               method: 'POST',
               headers: { 
                   'Content-Type': 'application/json',
@@ -372,30 +372,3 @@ const base64ToBuffer = (base64) => {
     </div>
       );
 }
-
-    //   const resetDatabase = async () => {
-    //     try {
-    //       const response = await fetch('http://127.0.0.1:5000/reset', {
-    //         method: 'POST',
-    //         headers: { 'Content-Type': 'application/json' }
-    //       });
-    //       if (!response.ok) {
-    //         throw new Error(`HTTP error! status: ${response.status}`);
-    //       }
-    //       const data = await response.json();
-    //       setMessage(data.message);
-    //       setUsers([]);
-    //       setFiles([]);
-    //     } catch (error) {
-    //       console.error('Error:', error);
-    //       setMessage('Error resetting database.');
-    //     }
-    //   };
-
-
-    //   const handleLogout = () => {
-    //     setUserId(null);
-    //     setLoggedInUser(null);
-    //     setFiles([]);
-    //     setMessage('');
-    //   };

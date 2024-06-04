@@ -85,7 +85,7 @@ export default function Home({ showToast, setUserId, setJWT}) {
         return;
       }
       try {
-        const response = await fetch('http://127.0.0.1:5000/register', {
+        const response = await fetch('http://127.0.0.1:3500/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -110,7 +110,7 @@ export default function Home({ showToast, setUserId, setJWT}) {
  
       const handleLogin = async () => {
         try {
-          const response = await fetch('http://127.0.0.1:5000/login', {
+          const response = await fetch('http://127.0.0.1:3500/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ signInUsername, signInPassword })
@@ -140,7 +140,7 @@ export default function Home({ showToast, setUserId, setJWT}) {
       const sendVerificationCode = async () => {
         setOpen(false);
         try {
-          const response = await fetch('http://127.0.0.1:5000/verifyCode', {
+          const response = await fetch('http://127.0.0.1:3500/verifyCode', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ signInUsername, signInPassword, verificationCode })
